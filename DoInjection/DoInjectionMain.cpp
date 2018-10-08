@@ -9,7 +9,7 @@
 #pragma comment(lib,"Advapi32.lib")
 
 //这个路径很有意思，这个路径是相对于目标进程的，而不是自身进程。
-//所以要嘛写成绝对路径，要嘛写成相对于目标进程的相对路径。
+//所以要么写成绝对路径，要么写成相对于目标进程的相对路径。
 //如果写成相对于自身的路径就要麻烦了，本程序就找不到DLL文件了。
 const char *pcDllName = "MfcHookApi.dll";        //DLL文件的路径
 HANDLE hSnap = 0, hThreadHandle = 0, hRemoteProcess32 = 0, hTokenHandle = 0;
@@ -362,7 +362,7 @@ HANDLE MsicCreateRemoteThread(HANDLE hProcess, LPTHREAD_START_ROUTINE lpStartAdd
 #ifdef _WIN64
 			pMisc = pGlobalData + 0x5C;
 #else
-			pMisc = pGlobalData + 0x30;
+			pMisc = pGlobalData + 0x30;//项目是Win32项目时会走这里
 #endif
 		}
 		else
