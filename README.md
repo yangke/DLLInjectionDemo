@@ -27,7 +27,7 @@ This MFC window program is used as an injection target when running DoInjection 
 * This project is created as  MFC dll Application.
 
 When this MFC dll is loaded(with the target process`explorer.exe`), its `CMfcHookApiApp::InitInstance` function will be triggered.
-and it will perform the core call `SetHookCreateWindowEx(GetModuleHandle(NULL));` to hook CreateWindowExW/A.
+and it will perform the core call `SetHookCreateWindowEx(GetModuleHandle(NULL));` to hook `CreateWindowExW/A`.
 Specificially, it use 
 ```
 HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -37,16 +37,65 @@ and find the process handle of the process with the correct `pcProsessName`.
 
 Then it loads the `user32.dll` and modify the jump instruction located at original `CreateWindowExW/A`.
 Note that we have to gurantee that the hook must be cleared when performing interception operations.
-So, we must clear and rehook before and and after performing the following core opreations.
+So, we must clear hook and rehook before and and after the core functional routine.
 
 ### Goal OPERATIONS
-Between the above-mentioned covers, we can safely perform the core business.
-By adding judgement code in the substitute of `CreateWindowA`(which is `HookCreateWindowExA` function in `MfcHookApi` project), we can intercept call to `CreateWindowA` when creating specific window "" during drag and drop.
-At this point, we hook the DispatchMessageW and judge the condition of the last drop state.
-Wine code has provide the exact code of this judgement process. The judgement process is from the last message dispatching(`DispatchMessageW`) to `ISFDropTarget\_Drop`.
-As we already figure out this path, here we just make a retro version.
-The core conditions and details are implemented in `inspect_before` function.
+With the above-mentioned covers, we can safely do the core business.
+Now that the call to `CreateWindowA` has been redirected to function `HookCreateWindowExA`,
+what we need to do in `HookCreateWindowExA` is to add judgement code to make sure the specific window "WineDragDropTracker32" is created.
+The window used for drag-drop tracking in wine has this unique class name.
+Then we intercept and monitor `DispatchMessageW`.
+We need to locate the last dispatched message of the drop process and pin-point the position before calling `ISFDropTarget\_Drop`(in wine).
+Because the fix for `ISFDropTarget\_Drop` use `This->sPathTarget` without checking it validity.
 ```
+static HRESULT WINAPI
+ISFDropTarget_Drop (IDropTarget * iface, IDataObject * pDataObject,
+                    DWORD dwKeyState, POINTL pt, DWORD * pdwEffect)
+{
+    IGenericSFImpl *This = impl_from_IDropTarget(iface);
+	...
+	for (i = 0; i < pidaShellIDList->cidl; i++) {
+		...
+        switch (*pdwEffect) {
+			case DROPEFFECT_MOVE:		
+				if (wszSourcePath[0]!='\0'&& This->sPathTarget)
+				{
+					if (strcmpW(wszSourcePath, This->sPathTarget))
+					{
+						SHFILEOPSTRUCTW fileOp;
+						WCHAR srcPath[MAX_PATH];
+						WCHAR *wszPathsList;
+
+						lstrcpynW(srcPath, wszSourcePath, MAX_PATH);
+						
+						PathAddBackslashW(srcPath);
+						wszPathsList = build_paths_list(srcPath, 1, (LPCITEMIDLIST*)&apidl[i]);
+						ZeroMemory(&fileOp, sizeof(fileOp));
+						fileOp.hwnd = GetActiveWindow();
+						fileOp.wFunc = FO_MOVE;
+						fileOp.pFrom = wszPathsList;
+						fileOp.pTo = This->sPathTarget;//without length check
+						fileOp.fFlags = FOF_NOCONFIRMATION;
+						hr = (SHFileOperationW(&fileOp)==0 ? S_OK : E_FAIL);
+					}
+				}
+				else
+					hr = E_OUTOFMEMORY;
+					break;
+			case DROPEFFECT_COPY:
+			    //This->sPathTarget without length or NULL check
+				ISFHelper_CopyItems(&This->ISFHelper_iface, psfSourceFolder, pidaShellIDList->cidl, (LPCITEMIDLIST*)apidl);
+				break;
+		...
+```
+Wine code has provide the exact code of this judgement, from message dispatching(`DispatchMessageW`) and all the way through `ISFDropTarget\_Drop`.
+The following graph shows the three key opreation of the drop process. What we talk here is the intercepting of the last(right hand) path.
+![Three key operations of drop process(set target path data,check keyboard state, do real process)][docs/pictures/three_step_of_drop.pdf]
+This path can be obtained by manually debugging wine code(as our attacking target is wine).
+Make a retro version of this process and change the data just before the last message dispatching, then a successful data tampering is performed.
+See `inspect_before` function for core judgement and data tampering logics of this process.
+```
+
 void inspect_before(MSG* msg)
 {
 	WCHAR temp[256];
