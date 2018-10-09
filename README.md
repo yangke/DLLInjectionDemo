@@ -53,44 +53,11 @@ ISFDropTarget_Drop (IDropTarget * iface, IDataObject * pDataObject,
                     DWORD dwKeyState, POINTL pt, DWORD * pdwEffect)
 {
     IGenericSFImpl *This = impl_from_IDropTarget(iface);
-	...
-	for (i = 0; i < pidaShellIDList->cidl; i++) {
-		...
-        switch (*pdwEffect) {
-			case DROPEFFECT_MOVE:		
-				if (wszSourcePath[0]!='\0'&& This->sPathTarget)
-				{
-					if (strcmpW(wszSourcePath, This->sPathTarget))
-					{
-						SHFILEOPSTRUCTW fileOp;
-						WCHAR srcPath[MAX_PATH];
-						WCHAR *wszPathsList;
-
-						lstrcpynW(srcPath, wszSourcePath, MAX_PATH);
-						
-						PathAddBackslashW(srcPath);
-						wszPathsList = build_paths_list(srcPath, 1, (LPCITEMIDLIST*)&apidl[i]);
-						ZeroMemory(&fileOp, sizeof(fileOp));
-						fileOp.hwnd = GetActiveWindow();
-						fileOp.wFunc = FO_MOVE;
-						fileOp.pFrom = wszPathsList;
-						fileOp.pTo = This->sPathTarget;//without length check
-						fileOp.fFlags = FOF_NOCONFIRMATION;
-						hr = (SHFileOperationW(&fileOp)==0 ? S_OK : E_FAIL);
-					}
-				}
-				else
-					hr = E_OUTOFMEMORY;
-					break;
-			case DROPEFFECT_COPY:
-			    //This->sPathTarget without length or NULL check
-				ISFHelper_CopyItems(&This->ISFHelper_iface, psfSourceFolder, pidaShellIDList->cidl, (LPCITEMIDLIST*)apidl);
-				break;
-		...
+	//Use This->sPathTarget to perform file copy or move without length or NULL check.
 ```
 Wine code has provide the exact code of this judgement, from message dispatching(`DispatchMessageW`) and all the way through `ISFDropTarget\_Drop`.
 The following graph shows the three key opreation of the drop process. What we talk here is the intercepting of the last(right hand) path.
-![Three key operations of drop process(set target path data,check keyboard state, do real process)][docs/pictures/three_step_of_drop.pdf]
+![Three key operations of drop process(set target path data,check keyboard state, do real process)](docs/pictures/three_step_of_drop.pdf)
 This path can be obtained by manually debugging wine code(as our attacking target is wine).
 Make a retro version of this process and change the data just before the last message dispatching, then a successful data tampering is performed.
 See `inspect_before` function for core judgement and data tampering logics of this process.
