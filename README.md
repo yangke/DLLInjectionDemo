@@ -45,24 +45,24 @@ Now that the call to `CreateWindowA` has been redirected to function `HookCreate
 what we need to do in `HookCreateWindowExA` is to add judgement code to make sure the specific window "WineDragDropTracker32" is created.
 The window used for drag-drop tracking in wine has this unique class name.
 Then we intercept and monitor `DispatchMessageW`.
-We need to locate the last dispatched message of the drop process and pin-point the position before calling `ISFDropTarget\_Drop`(in wine).
-Because the fix for `ISFDropTarget\_Drop` use `This->sPathTarget` without checking it validity.
+We need to locate the last dispatched message of the drop process and pin-point the position before calling `ISFDropTarget_Drop`(in wine).
+Because the fix for `ISFDropTarget_Drop` use `This->sPathTarget` without checking it validity.
 ```
 static HRESULT WINAPI
 ISFDropTarget_Drop (IDropTarget * iface, IDataObject * pDataObject,
                     DWORD dwKeyState, POINTL pt, DWORD * pdwEffect)
 {
     IGenericSFImpl *This = impl_from_IDropTarget(iface);
-	//Use This->sPathTarget to perform file copy or move without length or NULL check.
+    //Use This->sPathTarget to perform file copy or move without length or NULL check.
 ```
-Wine code has provide the exact code of this judgement, from message dispatching(`DispatchMessageW`) and all the way through `ISFDropTarget\_Drop`.
-The following graph shows the three key opreation of the drop process. What we talk here is the intercepting of the last(right hand) path.
+Wine code has provide the exact code of this judgement, from message dispatching(`DispatchMessageW`) all the way through `ISFDropTarget_Drop`.
+The following graph shows the three key opreation of the drop process.
+What we talk here is the intercepting of the last(right hand) path.
 ![Three key operations of drop process(set target path data,check keyboard state, do real process)](docs/pictures/three_step_of_drop.pdf)
 This path can be obtained by manually debugging wine code(as our attacking target is wine).
 Make a retro version of this process and change the data just before the last message dispatching, then a successful data tampering is performed.
 See `inspect_before` function for core judgement and data tampering logics of this process.
 ```
-
 void inspect_before(MSG* msg)
 {
 	WCHAR temp[256];
@@ -81,10 +81,9 @@ void inspect_before(MSG* msg)
 ```
 Trial and error is unavoidable for declaration of correct data structures, but it is straight forward as a whole.
 
-The so called "hooking" here is just a kind of code tampering, not the classic hook, as the classic hook usually use `SetWindowsHookEx` function, and it intercepts limited predefined windows functions
+The so called "hooking" here is just a kind of code tampering, not the classic hook, as the classic hook usually use `SetWindowsHookEx` function, and it intercepts limited predefined windows functions.
 The target program is responsible for recover it.
 The following code illustrate the classic windows hooking technique(but we doesn't use here).
-
 ```
 //An empty hook function.
 LRESULT WINAPI HookProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -104,3 +103,4 @@ extern "C" __declspec(dllexport) void InstallHook4Api(HWND hwnd)
 	}
 }
 ```
+Actually there are over 10 kinds of Dll Injection Methods, See ![Ten Process Injection Techniques: A Technical Survey Of Common And Trending Process Injection Techniques](https://www.endgame.com/blog/technical-blog/ten-process-injection-techniques-technical-survey-common-and-trending-process)
