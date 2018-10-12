@@ -57,8 +57,8 @@ ISFDropTarget_Drop (IDropTarget * iface, IDataObject * pDataObject,
 ```
 Wine code has provide the exact code of this judgement, from message dispatching(`DispatchMessageW`) all the way through `ISFDropTarget_Drop`.
 The following graph shows the three key opreation of the drop process.
-What we talk here is the intercepting of the last(right hand) path.
-![Three key operations of drop process(set target path data,check keyboard state, do real process)](docs/pictures/three_step_of_drop.pdf)
+What we talk here is the intercepting of the last(right hand) path. 
+See ![three key operations of drop process(set target path data,check keyboard state, do real process)](docs/pictures/three_step_of_drop.pdf).
 This path can be obtained by manually debugging wine code(as our attacking target is wine).
 Make a retro version of this process and change the data just before the last message dispatching, then a successful data tampering is performed.
 See `inspect_before` function for core judgement and data tampering logics of this process.
@@ -103,4 +103,4 @@ extern "C" __declspec(dllexport) void InstallHook4Api(HWND hwnd)
 	}
 }
 ```
-Actually there are over 10 kinds of Dll Injection Methods, See ![Ten Process Injection Techniques: A Technical Survey Of Common And Trending Process Injection Techniques](https://www.endgame.com/blog/technical-blog/ten-process-injection-techniques-technical-survey-common-and-trending-process)
+Actually there are over 10 kinds of Dll Injection Methods, See [Ten Process Injection Techniques: A Technical Survey Of Common And Trending Process Injection Techniques](https://www.endgame.com/blog/technical-blog/ten-process-injection-techniques-technical-survey-common-and-trending-process)
